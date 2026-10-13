@@ -79,85 +79,81 @@ only; nothing is exposed to an untrusted network.
 ```
 deb-observability-lab/
 ├── ansible.cfg                  # Ansible defaults (inventory, roles_path, SSH)
-├── requirements.yml             # Galaxy collections/roles, if any
+├── Makefile                     # Standard local validation commands
+├── requirements-dev.txt         # Ansible and linting tools
 ├── inventory/
-│   ├── hosts.example.ini        # example inventory (versioned)
-│   └── group_vars/              # per-group variables (all / monitoring / monitored)
+│   ├── hosts.ini                # local fallback inventory (localhost)
+│   └── hosts.example.ini        # example Debian VM inventory
 ├── playbooks/
-│   ├── site.yml                 # main orchestration playbook
-│   ├── monitoring.yml           # Prometheus + Grafana
-│   └── monitored.yml            # Node Exporter
-├── roles/
-│   ├── common/                  # base setup (users, firewall, prerequisites)
-│   ├── node_exporter/
-│   ├── prometheus/
-│   └── grafana/
-├── files/grafana/dashboards/    # dashboards as code (JSON)
-├── tests/
-│   └── smoke/                   # post-deploy verification scripts
+│   └── site.yml                 # current connectivity check; future orchestration
+├── roles/                       # reusable roles added in later milestones
+├── files/                       # static files added in later milestones
+├── tests/                       # smoke and integration tests added later
 ├── docs/
-│   ├── architecture.md
-│   └── runbook.md               # troubleshooting & recovery procedures
-├── examples/
-│   └── vault.example.yml        # secrets structure (no real values)
+│   └── local-development.md     # local workstation and VM guidance
 └── .github/workflows/ci.yml     # yamllint + ansible-lint + syntax & dry-run checks
 ```
 
 ## Prerequisites
 
 Control node (your workstation):
-- Ansible (2.15+ recommended)
+- Python 3.11+
+- Ansible (installed from `requirements-dev.txt`)
 - `ansible-lint`, `yamllint`
-- An SSH key pair for connecting to the target
+- An SSH key pair for a future VM target
 
 Target (recommended): a local Debian 13 (Trixie) VM.
-Since the lab is local-first and requires no cloud, the recommended setup is a VM on
-your Linux workstation using KVM/libvirt, provisioned reproducibly with
-Vagrant + libvirt (a `Vagrantfile` will be provided in Milestone 0). VirtualBox is a
-supported alternative. A `localhost` fallback (deploying onto the control node itself) is
-also documented for environments without virtualization.
+KVM/libvirt is the preferred local virtualization option when available. The repository
+also includes a `localhost` fallback so the first Ansible connectivity check does not
+require a VM. VM provisioning is intentionally not a runtime dependency of the roles;
+its exact setup will be added once the local hypervisor workflow is defined.
 
-> The VM provisioning tooling (Vagrant / libvirt) is part of Milestone 0 and not yet
-> committed.
+See [`docs/local-development.md`](docs/local-development.md) for both workflows.
 
 ## Quick start
 
-> Target workflow (available as milestones land; see [Roadmap](#roadmap)).
+> Current Milestone 0 workflow. The monitoring stack will be added in later milestones.
 
 ```bash
-# 1. Bring up the local Debian VM (Milestone 0)
-vagrant up
+# 1. Create an isolated local Python environment
+python3 -m venv .venv
+. .venv/bin/activate
 
-# 2. Verify Ansible connectivity
-ansible all -i inventory/hosts.ini -m ping
+# 2. Install Ansible and validation tools
+python -m pip install -r requirements-dev.txt
 
-# 3. Deploy the full stack
-ansible-playbook -i inventory/hosts.ini playbooks/site.yml
+# 3. Validate the repository
+make lint
+make syntax
+make check
 
-# 4. Confirm idempotence (second run should report changed=0)
-ansible-playbook -i inventory/hosts.ini playbooks/site.yml
+# 4. Run the connectivity playbook against localhost
+make ping
 ```
 
-Then open Grafana at `http://<vm-ip>:3000` and Prometheus at `http://<vm-ip>:9090`.
+The versioned local inventory only runs the connectivity check. A future Debian VM can
+be targeted by creating a local inventory from `inventory/hosts.example.ini`.
 
 ## Testing & acceptance criteria
 
-In CI (GitHub Actions, no VM required):
-- `yamllint` passes
-- `ansible-lint` passes
-- `ansible-playbook --syntax-check` passes
-- `ansible-playbook --check` (dry-run) runs without error
+Milestone 0 acceptance criteria:
+- The development dependencies install in an isolated Python environment.
+- `yamllint` passes.
+- `ansible-lint` passes.
+- `ansible-playbook --syntax-check playbooks/site.yml` passes.
+- `ansible-playbook --check --diff playbooks/site.yml` passes.
+- The connectivity playbook reaches the local target with `ping: pong`.
+- The same checks run automatically in GitHub Actions without a VM.
 
-Locally (requires a Debian VM):
-- Clean deployment from a fresh Debian succeeds
-- A second run reports `changed=0` (idempotence)
-- `curl http://<vm>:9100/metrics` returns metrics
-- Prometheus shows the target as `up == 1`
-- Grafana datasource is healthy and the dashboard shows live data
-- Failure simulation: stopping Node Exporter makes the target `up == 0` in
-  Prometheus/Grafana; restarting it restores `up == 1`
+Future local VM acceptance criteria:
+- Clean deployment from a fresh Debian succeeds.
+- A second run reports `changed=0` (idempotence).
+- `curl http://<vm>:9100/metrics` returns metrics.
+- Prometheus shows the target as `up == 1`.
+- Grafana datasource is healthy and the dashboard shows live data.
+- Failure simulation makes the target `up == 0`, followed by successful recovery.
 
-See [`docs/runbook.md`](docs/runbook.md) for failure simulation and recovery procedures.
+The VM-dependent criteria belong to later milestones.
 
 ## Security
 
@@ -180,7 +176,7 @@ local lab and documented as future hardening.
 
 | Milestone | Objective |
 |---|---|
-| 0 | Local environment (Debian VM) + Ansible connectivity + CI lint |
+| 0 | Local Ansible environment + connectivity + CI lint |
 | 1 | `node_exporter` role (first full idempotent IaC chain) |
 | 2 | `prometheus` role (scrape + store, config generated from inventory) |
 | 3 | `grafana` role (datasource + dashboards provisioned as code) |

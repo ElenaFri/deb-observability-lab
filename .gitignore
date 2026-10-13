@@ -16,6 +16,7 @@ secrets.local.json
 
 # Local-only inventory overrides
 inventory/*.local
+inventory/*.local.ini
 inventory/*.local.yml
 inventory/*.local.yaml
 
