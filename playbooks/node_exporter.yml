@@ -1,0 +1,10 @@
+---
+- name: Deploy Node Exporter
+  hosts: monitored
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: node_exporter
+      tags:
+        - node_exporter

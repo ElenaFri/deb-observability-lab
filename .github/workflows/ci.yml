@@ -29,10 +29,12 @@ jobs:
         run: yamllint .
 
       - name: Lint Ansible
-        run: ansible-lint playbooks/
+        run: ansible-lint
 
       - name: Check playbook syntax
-        run: ansible-playbook --syntax-check playbooks/site.yml
+        run: |
+          ansible-playbook --syntax-check playbooks/site.yml
+          ansible-playbook --syntax-check playbooks/node_exporter.yml
 
       - name: Run connectivity playbook in check mode
         run: ansible-playbook --check --diff playbooks/site.yml

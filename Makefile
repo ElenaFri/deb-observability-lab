@@ -2,10 +2,11 @@
 
 lint:
 	yamllint .
-	ansible-lint playbooks/
+	ansible-lint
 
 syntax:
 	ansible-playbook --syntax-check playbooks/site.yml
+	ansible-playbook --syntax-check playbooks/node_exporter.yml
 
 check:
 	ansible-playbook --check --diff playbooks/site.yml

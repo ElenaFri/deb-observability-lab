@@ -1,6 +1,6 @@
 # Local development environment
 
-Milestone 0 supports a local-only workflow. It does not require a public cloud,
+The project supports a local-only workflow. It does not require a public cloud,
 a dedicated server or a paid service.
 
 ## Current fallback: localhost
@@ -16,8 +16,9 @@ python -m pip install -r requirements-dev.txt
 ansible-playbook playbooks/site.yml
 ```
 
-At this milestone the playbook only verifies Ansible connectivity. It does not
-install or modify the monitoring stack on the workstation.
+The localhost inventory is intentionally limited to the connectivity playbook. Do not
+run the Node Exporter deployment against it unless you explicitly want to modify the
+workstation.
 
 ## Recommended target: a local Debian VM
 
@@ -33,6 +34,19 @@ VM should have:
 topology the same host belongs to both `monitoring` and `monitored` groups.
 The inventory can later contain a dedicated monitoring host and several monitored
 hosts without changing the role boundaries.
+
+For Milestone 1, create `inventory/hosts.local.ini` from the example and run:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/node_exporter.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+The target user must have working `sudo` access. The Node Exporter role uses the
+signed Debian `prometheus-node-exporter` package and manages its systemd service.
 
 The repository does not currently require Vagrant. If Vagrant or another VM
 provisioner is added later, it must remain an optional local development helper,

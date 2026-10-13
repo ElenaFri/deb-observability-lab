@@ -1,0 +1,31 @@
+---
+- name: Assert the host runs a Debian-based distribution
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: >-
+      The node_exporter role only supports Debian-based systems,
+      but os_family is {{ ansible_facts['os_family'] | default('unknown') }}.
+    quiet: true
+
+- name: Install Node Exporter from Debian packages
+  ansible.builtin.apt:
+    name: "{{ node_exporter_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ node_exporter_apt_cache_valid_time }}"
+
+- name: Configure Node Exporter arguments
+  ansible.builtin.template:
+    src: prometheus-node-exporter.j2
+    dest: "{{ node_exporter_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Node Exporter
+
+- name: Ensure Node Exporter is enabled and running
+  ansible.builtin.systemd_service:
+    name: "{{ node_exporter_service }}"
+    enabled: true
+    state: started

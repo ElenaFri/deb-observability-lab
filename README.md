@@ -85,10 +85,13 @@ deb-observability-lab/
 │   ├── hosts.ini                # local fallback inventory (localhost)
 │   └── hosts.example.ini        # example Debian VM inventory
 ├── playbooks/
-│   └── site.yml                 # current connectivity check; future orchestration
-├── roles/                       # reusable roles added in later milestones
+│   ├── site.yml                 # connectivity check; future full orchestration
+│   └── node_exporter.yml        # Node Exporter deployment
+├── roles/
+│   └── node_exporter/           # Debian package, config template and handler
 ├── files/                       # static files added in later milestones
-├── tests/                       # smoke and integration tests added later
+├── tests/
+│   └── smoke/node_exporter.sh   # metrics endpoint smoke test
 ├── docs/
 │   └── local-development.md     # local workstation and VM guidance
 └── .github/workflows/ci.yml     # yamllint + ansible-lint + syntax & dry-run checks
@@ -112,7 +115,7 @@ See [`docs/local-development.md`](docs/local-development.md) for both workflows.
 
 ## Quick start
 
-> Current Milestone 0 workflow. The monitoring stack will be added in later milestones.
+> Milestone 0 workflow. The monitoring stack is added incrementally.
 
 ```bash
 # 1. Create an isolated local Python environment
@@ -131,8 +134,29 @@ make check
 make ping
 ```
 
-The versioned local inventory only runs the connectivity check. A future Debian VM can
-be targeted by creating a local inventory from `inventory/hosts.example.ini`.
+The versioned local inventory only runs the connectivity check. A Debian VM can be targeted
+with a local inventory based on `inventory/hosts.example.ini`.
+
+## Milestone 1: Node Exporter
+
+Run the deployment against the VM inventory, not against the localhost fallback:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/node_exporter.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+Validate the metrics endpoint from the control node:
+
+```bash
+bash tests/smoke/node_exporter.sh 192.168.122.60
+```
+
+Run the playbook a second time. Once the role is stable, the second run should report
+`changed=0`.
 
 ## Testing & acceptance criteria
 
@@ -145,15 +169,19 @@ Milestone 0 acceptance criteria:
 - The connectivity playbook reaches the local target with `ping: pong`.
 - The same checks run automatically in GitHub Actions without a VM.
 
+Milestone 1 acceptance criteria:
+- The Node Exporter role installs successfully on the Debian VM.
+- The `prometheus-node-exporter` service is enabled and active.
+- `http://<vm>:9100/metrics` returns Linux host metrics.
+- A second Ansible run reports `changed=0`.
+- Changing the managed configuration triggers the Node Exporter handler.
+
 Future local VM acceptance criteria:
-- Clean deployment from a fresh Debian succeeds.
-- A second run reports `changed=0` (idempotence).
-- `curl http://<vm>:9100/metrics` returns metrics.
 - Prometheus shows the target as `up == 1`.
 - Grafana datasource is healthy and the dashboard shows live data.
 - Failure simulation makes the target `up == 0`, followed by successful recovery.
 
-The VM-dependent criteria belong to later milestones.
+The Prometheus and Grafana criteria belong to later milestones.
 
 ## Security
 
