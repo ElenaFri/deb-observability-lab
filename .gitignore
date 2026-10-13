@@ -1,0 +1,36 @@
+# Ansible
+*.retry
+
+# Ansible Vault: never commit password files
+.vault_pass
+.vault-password
+vault-password-file
+
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+secrets.local.yml
+secrets.local.yaml
+secrets.local.json
+
+# Local-only inventory overrides
+inventory/*.local
+inventory/*.local.yml
+inventory/*.local.yaml
+
+# Generated monitoring data (if stored in the repository directory)
+prometheus-data/
+grafana-data/
+
+# Python / Ansible tooling
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*~
+.DS_Store
