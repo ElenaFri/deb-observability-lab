@@ -1,0 +1,8 @@
+---
+prometheus_package: prometheus
+prometheus_service: prometheus
+prometheus_config_file: /etc/prometheus/prometheus.yml
+prometheus_apt_cache_valid_time: 3600
+prometheus_scrape_interval: 15s
+prometheus_evaluation_interval: 15s
+prometheus_node_exporter_port: "{{ node_exporter_port | default(9100) }}"

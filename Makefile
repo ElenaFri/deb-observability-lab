@@ -6,7 +6,8 @@ lint:
 
 syntax:
 	ansible-playbook --syntax-check playbooks/site.yml
-	ansible-playbook --syntax-check playbooks/node_exporter.yml
+	ansible-playbook --syntax-check playbooks/deploy-node-exporter.yml
+	ansible-playbook --syntax-check playbooks/deploy-prometheus.yml
 
 check:
 	ansible-playbook --check --diff playbooks/site.yml

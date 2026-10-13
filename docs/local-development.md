@@ -40,13 +40,27 @@ For Milestone 1, create `inventory/hosts.local.ini` from the example and run:
 ```bash
 ansible-playbook \\
   -i inventory/hosts.local.ini \\
-  playbooks/node_exporter.yml \\
+  playbooks/deploy-node-exporter.yml \\
   --private-key ~/.ssh/deb-observability-lab \\
   --ask-become-pass
 ```
 
 The target user must have working `sudo` access. The Node Exporter role uses the
 signed Debian `prometheus-node-exporter` package and manages its systemd service.
+
+For Milestone 2, deploy Prometheus on the monitoring host:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-prometheus.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+Prometheus scrape targets are generated from the `monitored` inventory group, and the
+scrape port comes from `node_exporter_port` in `inventory/group_vars/all.yml`, so the two
+roles stay in sync from a single value.
 
 The repository does not currently require Vagrant. If Vagrant or another VM
 provisioner is added later, it must remain an optional local development helper,

@@ -1,0 +1,5 @@
+---
+# Lab-wide variables shared across roles.
+
+# TCP port exposed by Node Exporter and scraped by Prometheus.
+node_exporter_port: 9100

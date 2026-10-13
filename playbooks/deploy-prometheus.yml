@@ -1,0 +1,10 @@
+---
+- name: Deploy Prometheus
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: prometheus
+      tags:
+        - prometheus

@@ -3,5 +3,6 @@ node_exporter_package: prometheus-node-exporter
 node_exporter_service: prometheus-node-exporter
 node_exporter_config_file: /etc/default/prometheus-node-exporter
 node_exporter_apt_cache_valid_time: 3600
-node_exporter_listen_address: ":9100"
+node_exporter_port: 9100
+node_exporter_listen_address: ":{{ node_exporter_port }}"
 node_exporter_args: "--web.listen-address={{ node_exporter_listen_address }}"

@@ -83,15 +83,18 @@ deb-observability-lab/
 ├── requirements-dev.txt         # Ansible and linting tools
 ├── inventory/
 │   ├── hosts.ini                # local fallback inventory (localhost)
-│   └── hosts.example.ini        # example Debian VM inventory
+│   ├── hosts.example.ini        # example Debian VM inventory
+│   └── group_vars/all.yml       # shared variables (e.g. Node Exporter port)
 ├── playbooks/
 │   ├── site.yml                 # connectivity check; future full orchestration
-│   └── node_exporter.yml        # Node Exporter deployment
+│   ├── deploy-node-exporter.yml # Node Exporter deployment
+│   └── deploy-prometheus.yml    # Prometheus deployment
 ├── roles/
-│   └── node_exporter/           # Debian package, config template and handler
+│   ├── node_exporter/           # Debian package, config template and handler
+│   └── prometheus/              # Debian package, inventory-driven scrape config
 ├── files/                       # static files added in later milestones
 ├── tests/
-│   └── smoke/node_exporter.sh   # metrics endpoint smoke test
+│   └── smoke/                   # metrics and health endpoint smoke tests
 ├── docs/
 │   └── local-development.md     # local workstation and VM guidance
 └── .github/workflows/ci.yml     # yamllint + ansible-lint + syntax & dry-run checks
@@ -144,7 +147,7 @@ Run the deployment against the VM inventory, not against the localhost fallback:
 ```bash
 ansible-playbook \\
   -i inventory/hosts.local.ini \\
-  playbooks/node_exporter.yml \\
+  playbooks/deploy-node-exporter.yml \\
   --private-key ~/.ssh/deb-observability-lab \\
   --ask-become-pass
 ```
@@ -157,6 +160,28 @@ bash tests/smoke/node_exporter.sh 192.168.122.60
 
 Run the playbook a second time. Once the role is stable, the second run should report
 `changed=0`.
+
+## Milestone 2: Prometheus
+
+Deploy Prometheus on the monitoring host. Its scrape configuration is generated from the
+`monitored` inventory group, so new hosts are picked up without editing templates:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-prometheus.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+Validate Prometheus health and the query API from the control node:
+
+```bash
+bash tests/smoke/prometheus.sh 192.168.122.60
+```
+
+The rendered configuration is validated with `promtool check config` before it is applied,
+and the service is reloaded (not restarted) when the scrape configuration changes.
 
 ## Testing & acceptance criteria
 
@@ -176,12 +201,20 @@ Milestone 1 acceptance criteria:
 - A second Ansible run reports `changed=0`.
 - Changing the managed configuration triggers the Node Exporter handler.
 
+Milestone 2 acceptance criteria:
+- The Prometheus role installs successfully on the monitoring host.
+- The `prometheus` service is enabled and active.
+- The rendered `prometheus.yml` passes `promtool check config`.
+- `http://<vm>:9090/-/healthy` reports Prometheus as healthy.
+- Every `monitored` host appears as a scrape target with `up == 1`.
+- A second Ansible run reports `changed=0`.
+- Changing the scrape configuration triggers a Prometheus reload.
+
 Future local VM acceptance criteria:
-- Prometheus shows the target as `up == 1`.
 - Grafana datasource is healthy and the dashboard shows live data.
 - Failure simulation makes the target `up == 0`, followed by successful recovery.
 
-The Prometheus and Grafana criteria belong to later milestones.
+The Grafana criteria belong to later milestones.
 
 ## Security
 
