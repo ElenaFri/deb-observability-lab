@@ -23,6 +23,8 @@
     state: directory
     owner: root
     group: root
+    # 0755 is the standard, APT-required mode for /etc/apt/keyrings; it holds
+    # only public signing keys. Restricting it can break apt repository checks.
     mode: "0755"
 
 - name: Download the Grafana APT signing key
@@ -31,7 +33,7 @@
     dest: "{{ grafana_apt_keyring }}.asc"
     owner: root
     group: root
-    mode: "0644"
+    mode: "0600"
 
 - name: Convert the Grafana APT signing key to a dearmored keyring
   ansible.builtin.command:
@@ -74,7 +76,7 @@
     state: directory
     owner: grafana
     group: grafana
-    mode: "0755"
+    mode: "0750"
 
 - name: Deploy provisioned dashboards
   ansible.builtin.copy:
@@ -82,7 +84,7 @@
     dest: "{{ grafana_dashboards_dir }}/node-overview.json"
     owner: grafana
     group: grafana
-    mode: "0644"
+    mode: "0640"
   notify: Restart Grafana
 
 - name: Ensure the Grafana systemd drop-in directory exists
@@ -91,7 +93,7 @@
     state: directory
     owner: root
     group: root
-    mode: "0755"
+    mode: "0750"
 
 - name: Configure Grafana admin credentials via a systemd drop-in
   ansible.builtin.template:

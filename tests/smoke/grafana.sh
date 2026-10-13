@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -ne 1 ]; then
+if [[ "$#" -ne 1 ]]; then
     printf 'Usage: %s HOST_OR_IP\n' "$0" >&2
     exit 2
 fi
