@@ -1,0 +1,10 @@
+---
+- name: Deploy Grafana
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: grafana
+      tags:
+        - grafana

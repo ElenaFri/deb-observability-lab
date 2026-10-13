@@ -1,0 +1,22 @@
+---
+grafana_package: grafana
+grafana_service: grafana-server
+
+# Grafana is not shipped in the official Debian repositories, so the role adds
+# Grafana's own signed APT repository instead of relying on a pinned binary.
+grafana_apt_key_url: https://apt.grafana.com/gpg.key
+grafana_apt_keyring: /etc/apt/keyrings/grafana.gpg
+grafana_apt_repo: "deb [signed-by={{ grafana_apt_keyring }}] https://apt.grafana.com stable main"
+grafana_apt_cache_valid_time: 3600
+
+# Admin credentials. The default is a lab placeholder: override it at deploy time
+# (for example with -e @secrets.local.yml or Ansible Vault). Grafana only applies
+# the admin password when it first initialises its database.
+grafana_admin_user: admin
+grafana_admin_password: admin
+
+# Datasource: in the single-VM MVP, Prometheus runs on the same host.
+grafana_prometheus_url: "http://localhost:9090"
+
+grafana_provisioning_dir: /etc/grafana/provisioning
+grafana_dashboards_dir: /var/lib/grafana/dashboards

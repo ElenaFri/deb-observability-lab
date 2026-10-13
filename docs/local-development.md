@@ -62,6 +62,30 @@ Prometheus scrape targets are generated from the `monitored` inventory group, an
 scrape port comes from `node_exporter_port` in `inventory/group_vars/all.yml`, so the two
 roles stay in sync from a single value.
 
+For Milestone 3, deploy Grafana on the monitoring host:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-grafana.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+Grafana is pulled from its official signed APT repository (it is not in Debian), and its
+Prometheus datasource and dashboards are provisioned as code. The admin password is a
+variable with a lab default; override it at deploy time, for example with a git-ignored
+vars file:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-grafana.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass \\
+  -e @secrets.local.yml
+```
+
 The repository does not currently require Vagrant. If Vagrant or another VM
 provisioner is added later, it must remain an optional local development helper,
 not a runtime dependency of the Ansible roles.

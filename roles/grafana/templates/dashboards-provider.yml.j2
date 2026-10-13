@@ -1,0 +1,14 @@
+# Managed by Ansible. Do not edit manually.
+apiVersion: 1
+
+providers:
+  - name: deb-observability-lab
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: {{ grafana_dashboards_dir }}
+      foldersFromFilesStructure: false

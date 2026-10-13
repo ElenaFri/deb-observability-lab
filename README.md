@@ -88,10 +88,12 @@ deb-observability-lab/
 ├── playbooks/
 │   ├── site.yml                 # connectivity check; future full orchestration
 │   ├── deploy-node-exporter.yml # Node Exporter deployment
-│   └── deploy-prometheus.yml    # Prometheus deployment
+│   ├── deploy-prometheus.yml   # Prometheus deployment
+│   └── deploy-grafana.yml      # Grafana deployment
 ├── roles/
 │   ├── node_exporter/           # Debian package, config template and handler
-│   └── prometheus/              # Debian package, inventory-driven scrape config
+│   ├── prometheus/              # Debian package, inventory-driven scrape config
+│   └── grafana/                 # Grafana APT repo, datasource and dashboards as code
 ├── files/                       # static files added in later milestones
 ├── tests/
 │   └── smoke/                   # metrics and health endpoint smoke tests
@@ -183,6 +185,35 @@ bash tests/smoke/prometheus.sh 192.168.122.60
 The rendered configuration is validated with `promtool check config` before it is applied,
 and the service is reloaded (not restarted) when the scrape configuration changes.
 
+## Milestone 3: Grafana
+
+Grafana is not available in the official Debian repositories, so the role adds Grafana's
+own signed APT repository (key stored in a dedicated keyring, `signed-by` enforced) and
+then installs the `grafana` package. The Prometheus datasource and the dashboards are
+provisioned as code, so nothing is created by clicking in the UI:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-grafana.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+The admin credentials are not hardcoded in the role: the default is a lab placeholder
+that should be overridden at deploy time (for example with `-e @secrets.local.yml` or
+Ansible Vault). Grafana only applies the admin password when it first initialises its
+database.
+
+Validate the Grafana health endpoint from the control node:
+
+```bash
+bash tests/smoke/grafana.sh 192.168.122.60
+```
+
+Then open `http://192.168.122.60:3000`, log in, and confirm the provisioned
+Prometheus datasource and the "Node overview" dashboard show live data.
+
 ## Testing & acceptance criteria
 
 Milestone 0 acceptance criteria:
@@ -210,11 +241,18 @@ Milestone 2 acceptance criteria:
 - A second Ansible run reports `changed=0`.
 - Changing the scrape configuration triggers a Prometheus reload.
 
+Milestone 3 acceptance criteria:
+- The Grafana role installs successfully on the monitoring host.
+- The `grafana-server` service is enabled and active.
+- `http://<vm>:3000/api/health` reports `"database": "ok"`.
+- The Prometheus datasource is provisioned and healthy.
+- The "Node overview" dashboard is provisioned and shows live data.
+- A second Ansible run reports `changed=0`.
+
 Future local VM acceptance criteria:
-- Grafana datasource is healthy and the dashboard shows live data.
 - Failure simulation makes the target `up == 0`, followed by successful recovery.
 
-The Grafana criteria belong to later milestones.
+The failure detection criteria belong to Milestone 4.
 
 ## Security
 

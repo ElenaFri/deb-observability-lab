@@ -1,0 +1,110 @@
+---
+- name: Assert the host runs a Debian-based distribution
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: >-
+      The grafana role only supports Debian-based systems,
+      but os_family is {{ ansible_facts['os_family'] | default('unknown') }}.
+    quiet: true
+
+- name: Install prerequisites for the Grafana APT repository
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - gnupg
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ grafana_apt_cache_valid_time }}"
+
+- name: Ensure the APT keyrings directory exists
+  ansible.builtin.file:
+    path: "{{ grafana_apt_keyring | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the Grafana APT signing key
+  ansible.builtin.get_url:
+    url: "{{ grafana_apt_key_url }}"
+    dest: "{{ grafana_apt_keyring }}.asc"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Convert the Grafana APT signing key to a dearmored keyring
+  ansible.builtin.command:
+    cmd: "gpg --dearmor --yes -o {{ grafana_apt_keyring }} {{ grafana_apt_keyring }}.asc"
+    creates: "{{ grafana_apt_keyring }}"
+
+- name: Add the Grafana APT repository
+  ansible.builtin.apt_repository:
+    repo: "{{ grafana_apt_repo }}"
+    filename: grafana
+    state: present
+    update_cache: true
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    name: "{{ grafana_package }}"
+    state: present
+
+- name: Provision the Prometheus datasource
+  ansible.builtin.template:
+    src: datasource.yml.j2
+    dest: "{{ grafana_provisioning_dir }}/datasources/prometheus.yml"
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart Grafana
+
+- name: Provision the dashboard provider
+  ansible.builtin.template:
+    src: dashboards-provider.yml.j2
+    dest: "{{ grafana_provisioning_dir }}/dashboards/deb-observability-lab.yml"
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart Grafana
+
+- name: Ensure the provisioned dashboards directory exists
+  ansible.builtin.file:
+    path: "{{ grafana_dashboards_dir }}"
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0755"
+
+- name: Deploy provisioned dashboards
+  ansible.builtin.copy:
+    src: dashboards/node-overview.json
+    dest: "{{ grafana_dashboards_dir }}/node-overview.json"
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  notify: Restart Grafana
+
+- name: Ensure the Grafana systemd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/{{ grafana_service }}.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Grafana admin credentials via a systemd drop-in
+  ansible.builtin.template:
+    src: admin-credentials.conf.j2
+    dest: /etc/systemd/system/{{ grafana_service }}.service.d/admin-credentials.conf
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart Grafana
+
+- name: Ensure Grafana is enabled and running
+  ansible.builtin.systemd_service:
+    name: "{{ grafana_service }}"
+    enabled: true
+    state: started

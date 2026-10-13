@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: deb-observability-lab
+  description: Install Grafana on Debian and provision its datasource and dashboards as code.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+dependencies: []
