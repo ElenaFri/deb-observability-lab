@@ -1,0 +1,18 @@
+---
+alertmanager_package: prometheus-alertmanager
+alertmanager_service: prometheus-alertmanager
+alertmanager_config_file: /etc/prometheus/alertmanager.yml
+alertmanager_apt_cache_valid_time: 3600
+alertmanager_port: 9093
+
+# Routing behaviour. The default receiver performs no external notification: alerts are
+# grouped and visible in the Alertmanager UI, which validates the routing pipeline without
+# any cloud or paid service. Wire a real receiver (email, webhook, chat) via Ansible Vault
+# as a later hardening step.
+alertmanager_group_by:
+  - alertname
+  - instance
+alertmanager_group_wait: 30s
+alertmanager_group_interval: 5m
+alertmanager_repeat_interval: 3h
+alertmanager_receiver_name: default

@@ -15,3 +15,8 @@ prometheus_alert_resource_for: 5m
 prometheus_alert_cpu_threshold: 85
 prometheus_alert_memory_threshold: 85
 prometheus_alert_disk_threshold: 85
+
+# Alertmanager integration (Milestone 5). Disabled by default to keep the role usable
+# on its own; enabled lab-wide in inventory/group_vars/all.yml.
+prometheus_alertmanager_enabled: false
+prometheus_alertmanager_target: "localhost:9093"

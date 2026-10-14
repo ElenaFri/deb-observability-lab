@@ -1,0 +1,10 @@
+---
+- name: Deploy Alertmanager
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: alertmanager
+      tags:
+        - alertmanager

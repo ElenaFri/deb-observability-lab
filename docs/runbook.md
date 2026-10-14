@@ -4,9 +4,10 @@ This runbook covers day-to-day checks, the alert rules shipped by the project, a
 reproducible incident simulation with its recovery procedure. All commands assume the
 single-VM lab (`192.168.122.60` in the examples); adjust the address to your target.
 
-Prometheus evaluates the alert rules itself and shows them on `/alerts`. Routing and
-notifications (email, chat, etc.) are deliberately out of scope here and are deferred to
-the optional Alertmanager milestone.
+Prometheus evaluates the alert rules itself and shows them on `/alerts`. From Milestone 5,
+Alertmanager receives those alerts and groups, deduplicates and (optionally) notifies on
+them. External notifications (email, chat, etc.) are deferred to a Vault-based hardening
+step; the default receiver only exposes alerts in the Alertmanager UI.
 
 ## Service map
 
@@ -15,6 +16,7 @@ the optional Alertmanager milestone.
 | Node Exporter | monitored | `prometheus-node-exporter` | `9100` |
 | Prometheus | monitoring | `prometheus` | `9090` |
 | Grafana | monitoring | `grafana-server` | `3000` |
+| Alertmanager | monitoring | `prometheus-alertmanager` | `9093` |
 
 ## Routine health checks
 
@@ -25,6 +27,7 @@ bash tests/smoke/node_exporter.sh 192.168.122.60
 bash tests/smoke/prometheus.sh 192.168.122.60
 bash tests/smoke/alert_rules.sh 192.168.122.60
 bash tests/smoke/grafana.sh 192.168.122.60
+bash tests/smoke/alertmanager.sh 192.168.122.60
 ```
 
 Check that every target is up:
@@ -36,7 +39,7 @@ curl --silent 'http://192.168.122.60:9090/api/v1/query?query=up' | python3 -m js
 On the VM itself:
 
 ```bash
-systemctl status prometheus-node-exporter prometheus grafana-server
+systemctl status prometheus-node-exporter prometheus grafana-server prometheus-alertmanager
 journalctl -u prometheus -n 50 --no-pager
 ```
 
@@ -60,6 +63,28 @@ curl --silent 'http://192.168.122.60:9090/api/v1/alerts'  | python3 -m json.tool
 ```
 
 Or open `http://192.168.122.60:9090/alerts` in a browser.
+
+## Alertmanager
+
+Prometheus forwards firing alerts to Alertmanager, which groups and deduplicates them.
+Inspect the routed alerts:
+
+```bash
+curl --silent 'http://192.168.122.60:9093/api/v2/alerts' | python3 -m json.tool
+```
+
+Or open `http://192.168.122.60:9093` in a browser. The default receiver performs no
+external notification; alerts are only displayed here. To add email/webhook/chat
+notifications, extend the `alertmanager` role's configuration and store any credentials in
+Ansible Vault.
+
+To silence an alert during planned maintenance, use the Alertmanager UI ("Silences" tab)
+or `amtool` on the VM:
+
+```bash
+ssh -t elena_f@192.168.122.60 \
+  'amtool --alertmanager.url=http://localhost:9093 silence add alertname=InstanceDown --duration=1h --comment="planned maintenance"'
+```
 
 ## Incident simulation: a monitored host goes down
 

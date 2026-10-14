@@ -3,3 +3,6 @@
 
 # TCP port exposed by Node Exporter and scraped by Prometheus.
 node_exporter_port: 9100
+
+# Route Prometheus alerts to the local Alertmanager (Milestone 5).
+prometheus_alertmanager_enabled: true

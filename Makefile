@@ -9,6 +9,7 @@ syntax:
 	ansible-playbook --syntax-check playbooks/deploy-node-exporter.yml
 	ansible-playbook --syntax-check playbooks/deploy-prometheus.yml
 	ansible-playbook --syntax-check playbooks/deploy-grafana.yml
+	ansible-playbook --syntax-check playbooks/deploy-alertmanager.yml
 
 check:
 	ansible-playbook --check --diff playbooks/site.yml

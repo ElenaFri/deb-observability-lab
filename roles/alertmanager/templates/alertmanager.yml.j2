@@ -1,0 +1,13 @@
+# Managed by Ansible. Do not edit manually.
+route:
+  receiver: {{ alertmanager_receiver_name }}
+  group_by:
+{% for label in alertmanager_group_by %}
+    - {{ label }}
+{% endfor %}
+  group_wait: {{ alertmanager_group_wait }}
+  group_interval: {{ alertmanager_group_interval }}
+  repeat_interval: {{ alertmanager_repeat_interval }}
+
+receivers:
+  - name: {{ alertmanager_receiver_name }}

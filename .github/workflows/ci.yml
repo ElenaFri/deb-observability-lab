@@ -37,6 +37,7 @@ jobs:
           ansible-playbook --syntax-check playbooks/deploy-node-exporter.yml
           ansible-playbook --syntax-check playbooks/deploy-prometheus.yml
           ansible-playbook --syntax-check playbooks/deploy-grafana.yml
+          ansible-playbook --syntax-check playbooks/deploy-alertmanager.yml
 
       - name: Run connectivity playbook in check mode
         run: ansible-playbook --check --diff playbooks/site.yml

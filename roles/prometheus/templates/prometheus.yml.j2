@@ -6,6 +6,14 @@ global:
 rule_files:
   - {{ prometheus_rules_dir }}/*.yml
 
+{% if prometheus_alertmanager_enabled | default(false) %}
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "{{ prometheus_alertmanager_target }}"
+
+{% endif %}
 scrape_configs:
   - job_name: prometheus
     static_configs:

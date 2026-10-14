@@ -89,11 +89,13 @@ deb-observability-lab/
 │   ├── site.yml                 # connectivity check; future full orchestration
 │   ├── deploy-node-exporter.yml # Node Exporter deployment
 │   ├── deploy-prometheus.yml   # Prometheus deployment
-│   └── deploy-grafana.yml      # Grafana deployment
+│   ├── deploy-grafana.yml      # Grafana deployment
+│   └── deploy-alertmanager.yml # Alertmanager deployment
 ├── roles/
 │   ├── node_exporter/           # Debian package, config template and handler
 │   ├── prometheus/              # Debian package, inventory-driven scrape config
-│   └── grafana/                 # Grafana APT repo, datasource and dashboards as code
+│   ├── grafana/                 # Grafana APT repo, datasource and dashboards as code
+│   └── alertmanager/            # Debian package, alert routing configuration
 ├── files/                       # static files added in later milestones
 ├── tests/
 │   └── smoke/                   # metrics and health endpoint smoke tests
@@ -244,6 +246,45 @@ procedure in [`docs/runbook.md`](docs/runbook.md). In short: stopping
 `prometheus-node-exporter` on the VM drives `up` to `0` and makes `InstanceDown` fire
 after one minute; starting it again clears the alert.
 
+## Milestone 5: Alertmanager
+
+The `alertmanager` role installs the Debian `prometheus-alertmanager` package and
+configures alert routing (grouping, deduplication, repeat interval). Prometheus is wired
+to it through an `alerting:` block, enabled lab-wide by `prometheus_alertmanager_enabled`
+in `inventory/group_vars/all.yml`. The rendered configuration is validated with
+`amtool check-config` before it is applied.
+
+The default receiver performs no external notification: alerts are grouped and visible in
+the Alertmanager UI, which validates the routing pipeline without any cloud or paid
+service. Wiring a real receiver (email, webhook, chat) with its secrets stored in Ansible
+Vault is a documented later hardening step.
+
+Deploy Alertmanager, then re-run Prometheus so it learns about it:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-alertmanager.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-prometheus.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+Confirm Alertmanager health and that Prometheus registered it:
+
+```bash
+bash tests/smoke/alertmanager.sh 192.168.122.60
+```
+
+Run the incident simulation from [`docs/runbook.md`](docs/runbook.md) again: the firing
+`InstanceDown` alert now also appears in the Alertmanager UI at
+`http://192.168.122.60:9093`, grouped by `alertname` and `instance`.
+
 ## Testing & acceptance criteria
 
 Milestone 0 acceptance criteria:
@@ -288,6 +329,15 @@ Milestone 4 acceptance criteria:
 - Starting the service again clears the alert and `up` returns to `1`.
 - A second Ansible run reports `changed=0`.
 
+Milestone 5 acceptance criteria:
+- The `alertmanager` role installs successfully on the monitoring host.
+- The `prometheus-alertmanager` service is enabled and active.
+- The rendered `alertmanager.yml` passes `amtool check-config`.
+- `http://<vm>:9093/-/healthy` reports Alertmanager as healthy.
+- `http://<vm>:9090/api/v1/alertmanagers` lists the Alertmanager as active.
+- A firing `InstanceDown` alert is visible in the Alertmanager UI.
+- A second Ansible run reports `changed=0`.
+
 ## Security
 
 Sensible defaults for a local lab:
@@ -314,6 +364,6 @@ local lab and documented as future hardening.
 | 2 | `prometheus` role (scrape + store, config generated from inventory) |
 | 3 | `grafana` role (datasource + dashboards provisioned as code) |
 | 4 | Incident detection (alert rules) + runbook + smoke tests |
-| 5 *(optional)* | Alertmanager + notifications |
+| 5 | Alertmanager + alert routing (external notifications via Vault, optional) |
 | 6 *(optional)* | Multi-VM separation |
 | 7 *(optional)* | Molecule tests + TLS/auth hardening |
