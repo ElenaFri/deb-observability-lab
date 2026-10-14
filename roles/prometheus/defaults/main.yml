@@ -6,3 +6,12 @@ prometheus_apt_cache_valid_time: 3600
 prometheus_scrape_interval: 15s
 prometheus_evaluation_interval: 15s
 prometheus_node_exporter_port: "{{ node_exporter_port | default(9100) }}"
+
+# Alerting (Milestone 4). Alerts fire inside Prometheus and are visible on /alerts;
+# routing and notifications are deferred to the optional Alertmanager milestone.
+prometheus_rules_dir: /etc/prometheus/rules
+prometheus_alert_instance_down_for: 1m
+prometheus_alert_resource_for: 5m
+prometheus_alert_cpu_threshold: 85
+prometheus_alert_memory_threshold: 85
+prometheus_alert_disk_threshold: 85

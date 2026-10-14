@@ -98,7 +98,8 @@ deb-observability-lab/
 ├── tests/
 │   └── smoke/                   # metrics and health endpoint smoke tests
 ├── docs/
-│   └── local-development.md     # local workstation and VM guidance
+│   ├── local-development.md     # local workstation and VM guidance
+│   └── runbook.md               # operations, incident simulation and recovery
 └── .github/workflows/ci.yml     # yamllint + ansible-lint + syntax & dry-run checks
 ```
 
@@ -214,6 +215,35 @@ bash tests/smoke/grafana.sh 192.168.122.60
 Then open `http://192.168.122.60:3000`, log in, and confirm the provisioned
 Prometheus datasource and the "Node overview" dashboard show live data.
 
+## Milestone 4: Incident detection
+
+The `prometheus` role deploys alert rules to `/etc/prometheus/rules/alerts.yml`
+(`InstanceDown`, plus CPU / memory / disk thresholds). Rules are validated with
+`promtool check rules` before they are applied, and Prometheus is reloaded on change.
+Alerts fire inside Prometheus and appear on `/alerts`; routing and notifications are
+deferred to the optional Alertmanager milestone.
+
+Re-run the Prometheus deployment to ship the rules:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-prometheus.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+Confirm the rules are loaded:
+
+```bash
+bash tests/smoke/alert_rules.sh 192.168.122.60
+```
+
+Simulate a failure and watch it being detected, then recover, following the documented
+procedure in [`docs/runbook.md`](docs/runbook.md). In short: stopping
+`prometheus-node-exporter` on the VM drives `up` to `0` and makes `InstanceDown` fire
+after one minute; starting it again clears the alert.
+
 ## Testing & acceptance criteria
 
 Milestone 0 acceptance criteria:
@@ -249,10 +279,14 @@ Milestone 3 acceptance criteria:
 - The "Node overview" dashboard is provisioned and shows live data.
 - A second Ansible run reports `changed=0`.
 
-Future local VM acceptance criteria:
-- Failure simulation makes the target `up == 0`, followed by successful recovery.
-
-The failure detection criteria belong to Milestone 4.
+Milestone 4 acceptance criteria:
+- The `prometheus` role deploys `/etc/prometheus/rules/alerts.yml`.
+- The rendered rules pass `promtool check rules`.
+- `http://<vm>:9090/api/v1/rules` lists the `InstanceDown` rule.
+- Stopping Node Exporter drives `up{job="node"}` to `0`.
+- `InstanceDown` transitions to `firing` after its `for` window.
+- Starting the service again clears the alert and `up` returns to `1`.
+- A second Ansible run reports `changed=0`.
 
 ## Security
 

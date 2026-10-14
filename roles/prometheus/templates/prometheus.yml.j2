@@ -3,6 +3,9 @@ global:
   scrape_interval: {{ prometheus_scrape_interval }}
   evaluation_interval: {{ prometheus_evaluation_interval }}
 
+rule_files:
+  - {{ prometheus_rules_dir }}/*.yml
+
 scrape_configs:
   - job_name: prometheus
     static_configs:

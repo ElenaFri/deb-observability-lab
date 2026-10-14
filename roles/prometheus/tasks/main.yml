@@ -15,6 +15,24 @@
     update_cache: true
     cache_valid_time: "{{ prometheus_apt_cache_valid_time }}"
 
+- name: Ensure the Prometheus rules directory exists
+  ansible.builtin.file:
+    path: "{{ prometheus_rules_dir }}"
+    state: directory
+    owner: root
+    group: prometheus
+    mode: "0750"
+
+- name: Deploy Prometheus alert rules
+  ansible.builtin.template:
+    src: alerts.yml.j2
+    dest: "{{ prometheus_rules_dir }}/alerts.yml"
+    owner: root
+    group: prometheus
+    mode: "0640"
+    validate: "promtool check rules %s"
+  notify: Reload Prometheus
+
 - name: Configure Prometheus scrape targets
   ansible.builtin.template:
     src: prometheus.yml.j2
