@@ -1,0 +1,20 @@
+# Managed by Ansible. Do not edit manually.
+{
+	http_port {{ reverse_proxy_http_port }}
+	https_port {{ reverse_proxy_https_port }}
+}
+
+{{ reverse_proxy_server_name }} {
+	# Serve HTTPS with a certificate from Caddy's internal CA. This works offline
+	# and for bare IP addresses, which public ACME cannot issue for. Replace it
+	# with a CA-signed certificate before any real exposure.
+	tls internal
+
+	# Enforce HTTP basic authentication in front of the backend. The password is
+	# stored only as a bcrypt hash; HTTP is redirected to HTTPS automatically.
+	basicauth {
+		{{ reverse_proxy_basic_auth_user }} {{ reverse_proxy_basic_auth_hash }}
+	}
+
+	reverse_proxy {{ reverse_proxy_backend_url }}
+}

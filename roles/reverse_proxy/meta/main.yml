@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: deb-observability-lab
-  description: Front a monitoring backend with nginx, terminating TLS and enforcing HTTP basic authentication.
+  description: Front a monitoring backend with Caddy, terminating TLS via an internal CA and enforcing HTTP basic authentication.
   license: MIT
   min_ansible_version: "2.15"
   platforms:

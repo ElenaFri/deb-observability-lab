@@ -146,10 +146,11 @@ Exporter and Prometheus (see Milestone 6 in the README).
 
 ## Milestone 7: TLS and authenticated access
 
-The `reverse_proxy` role fronts a web UI with nginx, terminating TLS and requiring HTTP
-basic authentication. It generates a self-signed certificate on the host and computes the
-auth hash with `openssl`, so it adds no new Ansible collection. Override the basic-auth
-password at deploy time with a git-ignored vars file:
+The `reverse_proxy` role fronts a web UI with Caddy, terminating TLS and requiring HTTP
+basic authentication. It serves the backend over HTTPS using a certificate from Caddy's
+internal CA and computes the auth hash with `caddy hash-password` (generated once, then
+reused), so it adds no new Ansible collection and needs no third-party APT source. Override
+the basic-auth password at deploy time with a git-ignored vars file:
 
 ```bash
 ansible-playbook \\

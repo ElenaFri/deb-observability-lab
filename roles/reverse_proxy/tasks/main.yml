@@ -18,97 +18,60 @@
       secrets.local.yml or via Ansible Vault). The role ships no default password.
     quiet: true
 
-- name: Install nginx and openssl
+- name: Install Caddy
   ansible.builtin.apt:
-    name:
-      - "{{ reverse_proxy_package }}"
-      - openssl
+    name: "{{ reverse_proxy_package }}"
     state: present
     update_cache: true
     cache_valid_time: "{{ reverse_proxy_apt_cache_valid_time }}"
 
-- name: Ensure the TLS directory exists
-  ansible.builtin.file:
-    path: "{{ reverse_proxy_tls_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0750"
-
-- name: Generate a self-signed TLS certificate
-  ansible.builtin.command:
-    cmd: >-
-      openssl req -x509 -newkey rsa:4096 -nodes
-      -keyout {{ reverse_proxy_tls_key }}
-      -out {{ reverse_proxy_tls_cert }}
-      -days {{ reverse_proxy_tls_days }}
-      -subj "/CN={{ reverse_proxy_server_name }}"
-      -addext "subjectAltName={{ reverse_proxy_tls_san }}"
-    creates: "{{ reverse_proxy_tls_cert }}"
-  notify: Reload nginx
-
-- name: Secure the TLS private key
-  ansible.builtin.file:
-    path: "{{ reverse_proxy_tls_key }}"
-    owner: root
-    group: root
-    mode: "0600"
-
-- name: Secure the TLS certificate
-  ansible.builtin.file:
-    path: "{{ reverse_proxy_tls_cert }}"
-    owner: root
-    group: root
-    # Read by the nginx master (root) at config load; workers inherit it.
-    mode: "0640"
-
-- name: Compute the basic-auth password hash
-  ansible.builtin.command:
-    cmd: "openssl passwd -apr1 -salt {{ reverse_proxy_basic_auth_salt }} -stdin"
+# The bcrypt hash is generated once by Caddy's own tool (guaranteeing the exact
+# format the Caddyfile expects) and then reused, which keeps the play idempotent:
+# bcrypt uses a random salt, so re-hashing every run would rewrite the Caddyfile.
+# The password is fed on stdin, never on the command line. To rotate the password,
+# remove this file and redeploy.
+- name: Generate the basic-auth hash once
+  ansible.builtin.shell:
+    cmd: "set -o pipefail; caddy hash-password | tail -n1 > {{ reverse_proxy_hash_file }}"
     stdin: "{{ reverse_proxy_basic_auth_password }}"
-  register: reverse_proxy_htpasswd_hash
-  changed_when: false
+    creates: "{{ reverse_proxy_hash_file }}"
   no_log: true
 
-- name: Deploy the basic-auth credentials file
-  ansible.builtin.copy:
-    content: "{{ reverse_proxy_basic_auth_user }}:{{ reverse_proxy_htpasswd_hash.stdout }}\n"
-    dest: "{{ reverse_proxy_htpasswd_file }}"
+- name: Secure the basic-auth hash file
+  ansible.builtin.file:
+    path: "{{ reverse_proxy_hash_file }}"
     owner: root
-    group: www-data
+    group: caddy
     mode: "0640"
-  no_log: true
-  notify: Reload nginx
 
-- name: Deploy the nginx reverse-proxy site
+- name: Read the basic-auth hash
+  ansible.builtin.slurp:
+    src: "{{ reverse_proxy_hash_file }}"
+  register: reverse_proxy_hash
+  changed_when: false
+
+- name: Expose the basic-auth hash for the template
+  ansible.builtin.set_fact:
+    reverse_proxy_basic_auth_hash: "{{ reverse_proxy_hash.content | b64decode | trim }}"
+  no_log: true
+
+- name: Deploy the Caddyfile
   ansible.builtin.template:
-    src: nginx-site.conf.j2
-    dest: "/etc/nginx/sites-available/{{ reverse_proxy_site_name }}"
+    src: Caddyfile.j2
+    dest: "{{ reverse_proxy_config_file }}"
     owner: root
-    group: root
-    # Read by the nginx master (root) at config load only.
+    group: caddy
+    # Read by the caddy service user at config load; contains only the bcrypt hash.
     mode: "0640"
-  notify: Reload nginx
+  no_log: true
+  notify: Reload caddy
 
-- name: Enable the reverse-proxy site
-  ansible.builtin.file:
-    src: "/etc/nginx/sites-available/{{ reverse_proxy_site_name }}"
-    dest: "/etc/nginx/sites-enabled/{{ reverse_proxy_site_name }}"
-    state: link
-  notify: Reload nginx
-
-- name: Disable the default nginx site
-  ansible.builtin.file:
-    path: /etc/nginx/sites-enabled/default
-    state: absent
-  notify: Reload nginx
-
-- name: Validate the nginx configuration
+- name: Validate the Caddy configuration
   ansible.builtin.command:
-    cmd: nginx -t
+    cmd: "caddy validate --adapter caddyfile --config {{ reverse_proxy_config_file }}"
   changed_when: false
 
-- name: Ensure nginx is enabled and running
+- name: Ensure Caddy is enabled and running
   ansible.builtin.systemd_service:
     name: "{{ reverse_proxy_service }}"
     enabled: true

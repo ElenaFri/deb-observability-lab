@@ -21,7 +21,7 @@ components, and how it scales from a single VM to a multi-host layout without a 
 | Prometheus | monitoring | `9090` | Scrapes exporters, stores series in its local TSDB, evaluates alert rules |
 | Grafana | monitoring | `3000` | Queries Prometheus and renders dashboards provisioned as code |
 | Alertmanager | monitoring | `9093` | Receives firing alerts from Prometheus; groups, deduplicates and routes them |
-| nginx reverse proxy | monitoring | `443` | Terminates TLS and enforces HTTP basic auth in front of a web UI |
+| Caddy reverse proxy | monitoring | `443` | Terminates TLS and enforces HTTP basic auth in front of a web UI |
 
 The Ansible control node is your workstation; it connects to every VM over SSH and is not
 part of the running stack.
@@ -132,7 +132,7 @@ scraper and the exporters in sync.
 
 All interfaces are bound to the private VM network and are not exposed publicly. This is
 acceptable for a local lab. The `reverse_proxy` role (Milestone 7) adds a TLS and
-authentication layer: nginx terminates TLS on `:443` and requires HTTP basic auth before
+authentication layer: Caddy terminates TLS on `:443` and requires HTTP basic auth before
 forwarding to a backend, demonstrating the pattern for protecting a service that has no
 native authentication (such as Prometheus or Alertmanager).
 

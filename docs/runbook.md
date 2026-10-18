@@ -17,7 +17,7 @@ step; the default receiver only exposes alerts in the Alertmanager UI.
 | Prometheus | monitoring | `prometheus` | `9090` |
 | Grafana | monitoring | `grafana-server` | `3000` |
 | Alertmanager | monitoring | `prometheus-alertmanager` | `9093` |
-| nginx reverse proxy | monitoring | `nginx` | `443` |
+| Caddy reverse proxy | monitoring | `caddy` | `443` |
 
 In the single-VM lab one host fills both roles. In a multi-host lab (Milestone 6) the
 monitoring services run on the monitoring host only, while each monitored host runs Node
@@ -159,7 +159,7 @@ Exporter makes its target unscrapeable, so `up` drops to `0` and `InstanceDown` 
 | Grafana datasource test fails | Prometheus down or wrong URL | verify `:9090` health; check `grafana_prometheus_url` |
 | Alerts never fire | rules not loaded or evaluation disabled | `curl /api/v1/rules`; check `rule_files` in `prometheus.yml` |
 | Config change not applied | handler not triggered | confirm the task reports `changed`; the reload handler runs at the end of the play |
-| nginx fails to start after `nginx -t` passed | port `:80`/`:443` already bound (e.g. a leftover apache2) | `ss -ltnp | grep ':80 '`; stop and disable the conflicting service (`systemctl disable --now apache2`) |
+| Caddy fails to start after `caddy validate` passed | port `:80`/`:443` already bound (e.g. a leftover nginx or apache2) | `ss -ltnp | grep ':443 '`; stop and disable the conflicting service (`systemctl disable --now nginx apache2`) |
 
 ## Safe configuration changes
 

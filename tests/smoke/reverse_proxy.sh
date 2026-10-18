@@ -11,7 +11,8 @@ user="${2:-${RP_USER:-observer}}"
 password="${3:-${RP_PASS:-observer}}"
 base_url="https://${target}"
 
-# The certificate is self-signed in the lab, so verification is intentionally skipped.
+# The certificate is issued by Caddy's internal CA and not trusted by the client,
+# so verification is intentionally skipped.
 
 # 1. An unauthenticated request must be rejected by the proxy.
 code="$(curl --insecure --silent --output /dev/null --write-out '%{http_code}' "${base_url}/api/health")"

@@ -71,7 +71,7 @@ future multi-host diagram.
 | Prometheus | monitoring host | `9090` | Scrapes exporters, stores metrics, evaluates alert rules |
 | Grafana | monitoring host | `3000` | Dashboards and visualization |
 | Alertmanager *(optional, later)* | monitoring host | `9093` | Alert routing and notifications |
-| nginx reverse proxy | monitoring host | `443` | TLS termination and HTTP basic auth in front of the web UIs |
+| Caddy reverse proxy | monitoring host | `443` | TLS termination and HTTP basic auth in front of the web UIs |
 
 In the MVP all of these run on the same VM. Ports are bound to the private VM network
 only; nothing is exposed to an untrusted network.
@@ -93,14 +93,14 @@ deb-observability-lab/
 │   ├── deploy-prometheus.yml   # Prometheus deployment
 │   ├── deploy-grafana.yml      # Grafana deployment
 │   ├── deploy-alertmanager.yml # Alertmanager deployment
-│   └── deploy-reverse-proxy.yml # nginx TLS + basic-auth reverse proxy
+│   └── deploy-reverse-proxy.yml # Caddy TLS + basic-auth reverse proxy
 ├── roles/
 │   ├── node_exporter/           # Debian package, config template and handler
 │   │   └── molecule/default/    # Molecule scenario (converge, idempotence, verify)
 │   ├── prometheus/              # Debian package, inventory-driven scrape config
 │   ├── grafana/                 # Grafana APT repo, datasource and dashboards as code
 │   ├── alertmanager/            # Debian package, alert routing configuration
-│   └── reverse_proxy/           # nginx, self-signed TLS and HTTP basic authentication
+│   └── reverse_proxy/           # Caddy, internal-CA TLS and HTTP basic authentication
 ├── files/                       # static files added in later milestones
 ├── tests/
 │   └── smoke/                   # metrics and health endpoint smoke tests
@@ -338,16 +338,25 @@ Debian VM.
 
 ## Milestone 7: TLS and authenticated access
 
-The `reverse_proxy` role puts nginx in front of a web UI (Grafana by default), terminating
+The `reverse_proxy` role puts Caddy in front of a web UI (Grafana by default), terminating
 TLS and enforcing HTTP basic authentication. This turns the "future hardening" note into a
 working capability: the proxy listens on `:443`, redirects plain HTTP to HTTPS, and
 requires credentials before forwarding to the backend.
 
-The role stays pure `ansible.builtin` and adds no new collection. The self-signed
-certificate is generated on the host with `openssl req` (idempotent via `creates`), and the
-basic-auth hash is produced by `openssl passwd -apr1` with the password passed on stdin
-(never on the command line). The rendered site is checked with `nginx -t` before the
-service is reloaded.
+The role stays pure `ansible.builtin` and adds no new collection. Caddy serves the backend
+over HTTPS with a certificate from its own internal CA (`tls internal`), which works offline
+and for bare IP addresses, so no manual `openssl` certificate generation is needed. The
+basic-auth hash is produced by Caddy's own `caddy hash-password` (bcrypt), generated once on
+the host and reused on later runs so the deployment stays idempotent; the password is passed
+on stdin, never on the command line. To rotate the password, remove the generated hash file
+and redeploy. The rendered Caddyfile is checked with `caddy validate` before the service is
+reloaded.
+
+Caddy is installed from Debian's own repository (`apt install caddy`), so unlike Grafana it
+needs no third-party APT source.
+
+Migration note: Caddy binds `:80`/`:443`, so stop any other web server first
+(`sudo systemctl disable --now nginx apache2`) before the first deploy.
 
 The basic-auth password is not hardcoded and the role ships no default for it: it must be
 provided at deploy time (for example with `-e @secrets.local.yml` or Ansible Vault), or the
@@ -362,8 +371,8 @@ ansible-playbook \\
   -e @secrets.local.yml
 ```
 
-Validate the proxy from the control node (the self-signed certificate is intentionally not
-trusted, so the test skips verification):
+Validate the proxy from the control node (Caddy's internal-CA certificate is not trusted by
+the client, so the test skips verification):
 
 ```bash
 bash tests/smoke/reverse_proxy.sh 192.168.122.60 observer <password>
@@ -458,8 +467,8 @@ Milestone 6 acceptance criteria:
 - A second Ansible run reports `changed=0` across all hosts.
 
 Milestone 7 acceptance criteria:
-- The `reverse_proxy` role installs nginx and a self-signed certificate on the host.
-- The rendered site passes `nginx -t` before the service is reloaded.
+- The `reverse_proxy` role installs Caddy and serves the backend over TLS from an internal CA.
+- The rendered Caddyfile passes `caddy validate` before the service is reloaded.
 - `https://<vm>/` serves the backend over TLS.
 - A request without credentials is rejected with `401`.
 - A request with the configured credentials reaches the healthy backend.
@@ -483,7 +492,7 @@ Sensible defaults for a local lab:
   with Ansible Vault; password files and local secrets are git-ignored.
 - Clear separation between configuration (managed in `/etc`) and runtime data
   (persisted under `/var/lib`, never committed).
-- Optional authenticating TLS reverse proxy (`reverse_proxy` role): nginx terminates TLS
+- Optional authenticating TLS reverse proxy (`reverse_proxy` role): Caddy terminates TLS
   and enforces HTTP basic auth in front of a web UI, with the password supplied through
   Ansible Vault rather than stored in the role.
 
@@ -504,5 +513,5 @@ scope for the local lab.
 | 4 | Incident detection (alert rules) + runbook + smoke tests |
 | 5 | Alertmanager + alert routing (external notifications via Vault, optional) |
 | 6 | Multi-VM separation (monitoring host + dedicated monitored host) |
-| 7 | Authenticating TLS reverse proxy (nginx, hardening) |
+| 7 | Authenticating TLS reverse proxy (Caddy, hardening) |
 | 8 | Molecule role testing (converge + idempotence + verify, in CI, no Docker) |
