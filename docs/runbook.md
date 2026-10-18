@@ -17,6 +17,7 @@ step; the default receiver only exposes alerts in the Alertmanager UI.
 | Prometheus | monitoring | `prometheus` | `9090` |
 | Grafana | monitoring | `grafana-server` | `3000` |
 | Alertmanager | monitoring | `prometheus-alertmanager` | `9093` |
+| nginx reverse proxy | monitoring | `nginx` | `443` |
 
 In the single-VM lab one host fills both roles. In a multi-host lab (Milestone 6) the
 monitoring services run on the monitoring host only, while each monitored host runs Node
@@ -33,6 +34,13 @@ bash tests/smoke/prometheus.sh 192.168.122.60
 bash tests/smoke/alert_rules.sh 192.168.122.60
 bash tests/smoke/grafana.sh 192.168.122.60
 bash tests/smoke/alertmanager.sh 192.168.122.60
+```
+
+If the reverse proxy is deployed, also check it (credentials are the lab defaults or your
+overrides):
+
+```bash
+bash tests/smoke/reverse_proxy.sh 192.168.122.60 observer <password>
 ```
 
 Check that every target is up:
@@ -151,6 +159,7 @@ Exporter makes its target unscrapeable, so `up` drops to `0` and `InstanceDown` 
 | Grafana datasource test fails | Prometheus down or wrong URL | verify `:9090` health; check `grafana_prometheus_url` |
 | Alerts never fire | rules not loaded or evaluation disabled | `curl /api/v1/rules`; check `rule_files` in `prometheus.yml` |
 | Config change not applied | handler not triggered | confirm the task reports `changed`; the reload handler runs at the end of the play |
+| nginx fails to start after `nginx -t` passed | port `:80`/`:443` already bound (e.g. a leftover apache2) | `ss -ltnp | grep ':80 '`; stop and disable the conflicting service (`systemctl disable --now apache2`) |
 
 ## Safe configuration changes
 

@@ -27,7 +27,7 @@ Local-first. No public cloud, no paid services, no containers (Docker / Kubernet
 no Terraform. The focus is Linux system administration and Ansible fundamentals applied
 to a realistic observability use case.
 
-Optional later phases: Molecule tests, TLS / authenticated reverse proxy.
+Optional later phase: Molecule tests.
 
 ## Architecture
 
@@ -69,6 +69,7 @@ future multi-host diagram.
 | Prometheus | monitoring host | `9090` | Scrapes exporters, stores metrics, evaluates alert rules |
 | Grafana | monitoring host | `3000` | Dashboards and visualization |
 | Alertmanager *(optional, later)* | monitoring host | `9093` | Alert routing and notifications |
+| nginx reverse proxy | monitoring host | `443` | TLS termination and HTTP basic auth in front of the web UIs |
 
 In the MVP all of these run on the same VM. Ports are bound to the private VM network
 only; nothing is exposed to an untrusted network.
@@ -89,12 +90,14 @@ deb-observability-lab/
 │   ├── deploy-node-exporter.yml # Node Exporter deployment
 │   ├── deploy-prometheus.yml   # Prometheus deployment
 │   ├── deploy-grafana.yml      # Grafana deployment
-│   └── deploy-alertmanager.yml # Alertmanager deployment
+│   ├── deploy-alertmanager.yml # Alertmanager deployment
+│   └── deploy-reverse-proxy.yml # nginx TLS + basic-auth reverse proxy
 ├── roles/
 │   ├── node_exporter/           # Debian package, config template and handler
 │   ├── prometheus/              # Debian package, inventory-driven scrape config
 │   ├── grafana/                 # Grafana APT repo, datasource and dashboards as code
-│   └── alertmanager/            # Debian package, alert routing configuration
+│   ├── alertmanager/            # Debian package, alert routing configuration
+│   └── reverse_proxy/           # nginx, self-signed TLS and HTTP basic authentication
 ├── files/                       # static files added in later milestones
 ├── tests/
 │   └── smoke/                   # metrics and health endpoint smoke tests
@@ -330,6 +333,44 @@ dashboard in Grafana (use the instance selector). See
 [`docs/local-development.md`](docs/local-development.md) for provisioning a second local
 Debian VM.
 
+## Milestone 7: TLS and authenticated access
+
+The `reverse_proxy` role puts nginx in front of a web UI (Grafana by default), terminating
+TLS and enforcing HTTP basic authentication. This turns the "future hardening" note into a
+working capability: the proxy listens on `:443`, redirects plain HTTP to HTTPS, and
+requires credentials before forwarding to the backend.
+
+The role stays pure `ansible.builtin` and adds no new collection. The self-signed
+certificate is generated on the host with `openssl req` (idempotent via `creates`), and the
+basic-auth hash is produced by `openssl passwd -apr1` with the password passed on stdin
+(never on the command line). The rendered site is checked with `nginx -t` before the
+service is reloaded.
+
+The admin password is not hardcoded: the default is a lab placeholder, overridden at deploy
+time (for example with `-e @secrets.local.yml` or Ansible Vault):
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-reverse-proxy.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass \\
+  -e @secrets.local.yml
+```
+
+Validate the proxy from the control node (the self-signed certificate is intentionally not
+trusted, so the test skips verification):
+
+```bash
+bash tests/smoke/reverse_proxy.sh 192.168.122.60 observer <password>
+```
+
+Scope and honesty: this demonstrates TLS termination and authentication in front of a
+backend. It does not by itself hide the backend ports, which stay reachable on the private
+lab network for direct debugging. Full lockdown (binding the backends to `127.0.0.1` and
+adding a host firewall) and a CA-signed certificate are the remaining steps before exposing
+the stack to an untrusted network.
+
 ## Testing & acceptance criteria
 
 Milestone 0 acceptance criteria:
@@ -391,6 +432,15 @@ Milestone 6 acceptance criteria:
 - Both hosts are selectable in the "Node overview" Grafana dashboard.
 - A second Ansible run reports `changed=0` across all hosts.
 
+Milestone 7 acceptance criteria:
+- The `reverse_proxy` role installs nginx and a self-signed certificate on the host.
+- The rendered site passes `nginx -t` before the service is reloaded.
+- `https://<vm>/` serves the backend over TLS.
+- A request without credentials is rejected with `401`.
+- A request with the configured credentials reaches the healthy backend.
+- Plain HTTP on `:80` redirects to HTTPS.
+- A second Ansible run reports `changed=0`.
+
 ## Security
 
 Sensible defaults for a local lab:
@@ -402,11 +452,15 @@ Sensible defaults for a local lab:
   with Ansible Vault; password files and local secrets are git-ignored.
 - Clear separation between configuration (managed in `/etc`) and runtime data
   (persisted under `/var/lib`, never committed).
+- Optional authenticating TLS reverse proxy (`reverse_proxy` role): nginx terminates TLS
+  and enforces HTTP basic auth in front of a web UI, with the password supplied through
+  Ansible Vault rather than stored in the role.
 
-Before exposing the stack to an untrusted network you would additionally need TLS
-everywhere, an authenticated reverse proxy in front of Grafana/Prometheus, and
-authentication on the metrics endpoints. These are explicitly out of scope for the
-local lab and documented as future hardening.
+Before exposing the stack to an untrusted network you would additionally need a CA-signed
+certificate, the backends bound to `127.0.0.1` behind the proxy, a host firewall, and
+authentication on the metrics endpoints. The reverse proxy delivers the TLS and
+authentication layer; the remaining items are documented as future hardening and are out of
+scope for the local lab.
 
 ## Roadmap
 
@@ -419,4 +473,5 @@ local lab and documented as future hardening.
 | 4 | Incident detection (alert rules) + runbook + smoke tests |
 | 5 | Alertmanager + alert routing (external notifications via Vault, optional) |
 | 6 | Multi-VM separation (monitoring host + dedicated monitored host) |
-| 7 *(optional)* | Molecule tests + TLS/auth hardening |
+| 7 | Authenticating TLS reverse proxy (nginx, hardening) |
+| 8 *(optional)* | Molecule tests |

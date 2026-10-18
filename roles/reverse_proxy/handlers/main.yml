@@ -1,0 +1,5 @@
+---
+- name: Reload nginx
+  ansible.builtin.systemd_service:
+    name: "{{ reverse_proxy_service }}"
+    state: reloaded

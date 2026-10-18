@@ -1,0 +1,34 @@
+---
+reverse_proxy_package: nginx
+reverse_proxy_service: nginx
+reverse_proxy_apt_cache_valid_time: 3600
+
+reverse_proxy_site_name: deb-observability-lab
+
+# Backend to protect. In the single-VM MVP, Grafana runs on the same host.
+# The same role can front Prometheus (:9090) or Alertmanager (:9093), which have
+# no built-in authentication, by overriding this value.
+reverse_proxy_backend_url: "http://127.0.0.1:3000"
+
+# Name presented by the proxy and used in the certificate. Defaults to the host
+# address; override it when the lab is reached by a DNS name.
+reverse_proxy_server_name: "{{ ansible_host | default(ansible_default_ipv4.address) }}"
+
+reverse_proxy_http_port: 80
+reverse_proxy_https_port: 443
+
+# TLS: a self-signed certificate is generated on the host for the local lab.
+# Replace it with a CA-signed certificate before any real exposure.
+reverse_proxy_tls_dir: /etc/nginx/tls
+reverse_proxy_tls_cert: "{{ reverse_proxy_tls_dir }}/{{ reverse_proxy_site_name }}.crt"
+reverse_proxy_tls_key: "{{ reverse_proxy_tls_dir }}/{{ reverse_proxy_site_name }}.key"
+reverse_proxy_tls_days: 825
+reverse_proxy_tls_san: "IP:{{ reverse_proxy_server_name }}"
+
+# HTTP basic authentication. The default is a lab placeholder: override the
+# password at deploy time (for example with -e @secrets.local.yml or Ansible
+# Vault). The salt is fixed so the stored hash is stable across runs.
+reverse_proxy_basic_auth_user: observer
+reverse_proxy_basic_auth_password: observer
+reverse_proxy_basic_auth_salt: deblab01
+reverse_proxy_htpasswd_file: /etc/nginx/.htpasswd

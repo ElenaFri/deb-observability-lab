@@ -1,0 +1,10 @@
+---
+- name: Deploy the authenticating TLS reverse proxy
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: reverse_proxy
+      tags:
+        - reverse_proxy

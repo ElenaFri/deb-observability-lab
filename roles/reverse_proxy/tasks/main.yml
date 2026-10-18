@@ -1,0 +1,103 @@
+---
+- name: Assert the host runs a Debian-based distribution
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: >-
+      The reverse_proxy role only supports Debian-based systems,
+      but os_family is {{ ansible_facts['os_family'] | default('unknown') }}.
+    quiet: true
+
+- name: Install nginx and openssl
+  ansible.builtin.apt:
+    name:
+      - "{{ reverse_proxy_package }}"
+      - openssl
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ reverse_proxy_apt_cache_valid_time }}"
+
+- name: Ensure the TLS directory exists
+  ansible.builtin.file:
+    path: "{{ reverse_proxy_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Generate a self-signed TLS certificate
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -x509 -newkey rsa:4096 -nodes
+      -keyout {{ reverse_proxy_tls_key }}
+      -out {{ reverse_proxy_tls_cert }}
+      -days {{ reverse_proxy_tls_days }}
+      -subj "/CN={{ reverse_proxy_server_name }}"
+      -addext "subjectAltName={{ reverse_proxy_tls_san }}"
+    creates: "{{ reverse_proxy_tls_cert }}"
+  notify: Reload nginx
+
+- name: Secure the TLS private key
+  ansible.builtin.file:
+    path: "{{ reverse_proxy_tls_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Secure the TLS certificate
+  ansible.builtin.file:
+    path: "{{ reverse_proxy_tls_cert }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Compute the basic-auth password hash
+  ansible.builtin.command:
+    cmd: "openssl passwd -apr1 -salt {{ reverse_proxy_basic_auth_salt }} -stdin"
+    stdin: "{{ reverse_proxy_basic_auth_password }}"
+  register: reverse_proxy_htpasswd_hash
+  changed_when: false
+  no_log: true
+
+- name: Deploy the basic-auth credentials file
+  ansible.builtin.copy:
+    content: "{{ reverse_proxy_basic_auth_user }}:{{ reverse_proxy_htpasswd_hash.stdout }}\n"
+    dest: "{{ reverse_proxy_htpasswd_file }}"
+    owner: root
+    group: www-data
+    mode: "0640"
+  no_log: true
+  notify: Reload nginx
+
+- name: Deploy the nginx reverse-proxy site
+  ansible.builtin.template:
+    src: nginx-site.conf.j2
+    dest: "/etc/nginx/sites-available/{{ reverse_proxy_site_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable the reverse-proxy site
+  ansible.builtin.file:
+    src: "/etc/nginx/sites-available/{{ reverse_proxy_site_name }}"
+    dest: "/etc/nginx/sites-enabled/{{ reverse_proxy_site_name }}"
+    state: link
+  notify: Reload nginx
+
+- name: Disable the default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Validate the nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+
+- name: Ensure nginx is enabled and running
+  ansible.builtin.systemd_service:
+    name: "{{ reverse_proxy_service }}"
+    enabled: true
+    state: started

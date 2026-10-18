@@ -144,6 +144,27 @@ ssh -t <user>@<node2-ip> 'sudo systemctl disable --now prometheus grafana-server
 Then add `node2` to the `[monitored]` group in your local inventory and re-deploy Node
 Exporter and Prometheus (see Milestone 6 in the README).
 
+## Milestone 7: TLS and authenticated access
+
+The `reverse_proxy` role fronts a web UI with nginx, terminating TLS and requiring HTTP
+basic authentication. It generates a self-signed certificate on the host and computes the
+auth hash with `openssl`, so it adds no new Ansible collection. Override the basic-auth
+password at deploy time with a git-ignored vars file:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-reverse-proxy.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass \\
+  -e @secrets.local.yml
+```
+
+By default the proxy fronts Grafana (`reverse_proxy_backend_url`); point it at Prometheus
+(`http://127.0.0.1:9090`) or Alertmanager (`http://127.0.0.1:9093`) to protect a service
+that has no native authentication. Validate it with
+`bash tests/smoke/reverse_proxy.sh <vm> observer <password>`.
+
 ## Host checks
 The repository does not currently require Vagrant. If Vagrant or another VM
 
