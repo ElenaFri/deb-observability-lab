@@ -1,0 +1,36 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: false
+
+  # The verify play does not apply the role, so load its defaults to keep a
+  # single source of truth for the port instead of hard-coding it here.
+  vars_files:
+    - ../../defaults/main.yml
+
+  tasks:
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert Node Exporter is running
+      ansible.builtin.assert:
+        that:
+          - "'prometheus-node-exporter.service' in services"
+          - services['prometheus-node-exporter.service'].state == 'running'
+        fail_msg: The prometheus-node-exporter service is not running.
+        quiet: true
+
+    - name: Query the metrics endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ node_exporter_port }}/metrics"
+        status_code: 200
+        return_content: true
+      register: node_exporter_metrics
+
+    - name: Assert the endpoint exposes node metrics
+      ansible.builtin.assert:
+        that:
+          - "'node_cpu_seconds_total' in node_exporter_metrics.content"
+        fail_msg: The metrics endpoint did not expose the expected node series.
+        quiet: true

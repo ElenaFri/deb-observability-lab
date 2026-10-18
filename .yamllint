@@ -4,6 +4,8 @@ extends: default
 ignore: |
   .venv/
   .git/
+  secrets.local.*
+  inventory/*.local.*
 
 rules:
   braces:

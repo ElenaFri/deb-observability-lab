@@ -8,6 +8,16 @@
       but os_family is {{ ansible_facts['os_family'] | default('unknown') }}.
     quiet: true
 
+- name: Assert a basic-auth password was provided
+  ansible.builtin.assert:
+    that:
+      - reverse_proxy_basic_auth_password is defined
+      - reverse_proxy_basic_auth_password | length > 0
+    fail_msg: >-
+      reverse_proxy_basic_auth_password must be set (for example in a git-ignored
+      secrets.local.yml or via Ansible Vault). The role ships no default password.
+    quiet: true
+
 - name: Install nginx and openssl
   ansible.builtin.apt:
     name:
@@ -49,7 +59,8 @@
     path: "{{ reverse_proxy_tls_cert }}"
     owner: root
     group: root
-    mode: "0644"
+    # Read by the nginx master (root) at config load; workers inherit it.
+    mode: "0640"
 
 - name: Compute the basic-auth password hash
   ansible.builtin.command:
@@ -75,7 +86,8 @@
     dest: "/etc/nginx/sites-available/{{ reverse_proxy_site_name }}"
     owner: root
     group: root
-    mode: "0644"
+    # Read by the nginx master (root) at config load only.
+    mode: "0640"
   notify: Reload nginx
 
 - name: Enable the reverse-proxy site

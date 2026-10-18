@@ -20,6 +20,8 @@ to scale to a multi-host setup by editing the Ansible inventory, without a redes
 - Incident detection (stopped service / unreachable host) and documented recovery.
 - Automated validation (`yamllint`, `ansible-lint`, syntax & dry-run checks) in CI,
   with no paid infrastructure.
+- Role integration testing with Molecule (converge + idempotence + verify), running in
+  CI without Docker.
 
 ## Scope
 
@@ -94,6 +96,7 @@ deb-observability-lab/
 │   └── deploy-reverse-proxy.yml # nginx TLS + basic-auth reverse proxy
 ├── roles/
 │   ├── node_exporter/           # Debian package, config template and handler
+│   │   └── molecule/default/    # Molecule scenario (converge, idempotence, verify)
 │   ├── prometheus/              # Debian package, inventory-driven scrape config
 │   ├── grafana/                 # Grafana APT repo, datasource and dashboards as code
 │   ├── alertmanager/            # Debian package, alert routing configuration
@@ -346,8 +349,9 @@ basic-auth hash is produced by `openssl passwd -apr1` with the password passed o
 (never on the command line). The rendered site is checked with `nginx -t` before the
 service is reloaded.
 
-The admin password is not hardcoded: the default is a lab placeholder, overridden at deploy
-time (for example with `-e @secrets.local.yml` or Ansible Vault):
+The basic-auth password is not hardcoded and the role ships no default for it: it must be
+provided at deploy time (for example with `-e @secrets.local.yml` or Ansible Vault), or the
+role fails fast with a clear message.
 
 ```bash
 ansible-playbook \\
@@ -370,6 +374,27 @@ backend. It does not by itself hide the backend ports, which stay reachable on t
 lab network for direct debugging. Full lockdown (binding the backends to `127.0.0.1` and
 adding a host firewall) and a CA-signed certificate are the remaining steps before exposing
 the stack to an untrusted network.
+
+## Milestone 8: Molecule role testing
+
+Molecule is the standard test framework for Ansible roles: it converges a role on a test
+host, re-runs it to assert idempotence, then runs a verification play. The `node_exporter`
+role ships a Molecule scenario under
+[`roles/node_exporter/molecule/default/`](roles/node_exporter/molecule/default/).
+
+To stay free of Docker and of fragile VM drivers, the scenario uses the `default` driver in
+`managed: false` mode with a local connection: it converges the role on the host running
+Molecule. In CI that host is the ephemeral Ubuntu runner (Debian-family), so the test runs
+for free on every push, with no VM and no containers. The verify play asserts that
+`prometheus-node-exporter` is running and that `/metrics` exposes node series.
+
+Run it locally only inside a disposable Debian environment (it installs and starts a real
+service):
+
+```bash
+cd roles/node_exporter
+molecule test
+```
 
 ## Testing & acceptance criteria
 
@@ -441,6 +466,12 @@ Milestone 7 acceptance criteria:
 - Plain HTTP on `:80` redirects to HTTPS.
 - A second Ansible run reports `changed=0`.
 
+Milestone 8 acceptance criteria:
+- `molecule test` converges the `node_exporter` role without error.
+- The idempotence step passes (a second converge reports no change).
+- The verify play confirms the service is running and `/metrics` responds.
+- The scenario runs in GitHub Actions with no Docker and no VM.
+
 ## Security
 
 Sensible defaults for a local lab:
@@ -474,4 +505,4 @@ scope for the local lab.
 | 5 | Alertmanager + alert routing (external notifications via Vault, optional) |
 | 6 | Multi-VM separation (monitoring host + dedicated monitored host) |
 | 7 | Authenticating TLS reverse proxy (nginx, hardening) |
-| 8 *(optional)* | Molecule tests |
+| 8 | Molecule role testing (converge + idempotence + verify, in CI, no Docker) |

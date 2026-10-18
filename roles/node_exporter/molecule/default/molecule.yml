@@ -1,0 +1,33 @@
+---
+# The role is tested by converging it on the host running Molecule itself
+# (the ephemeral GitHub Actions runner, which is Debian-family). This keeps the
+# project free of Docker and of fragile VM drivers: the "default" driver in
+# managed:false mode does not create or destroy anything, it just targets the
+# local connection declared below.
+driver:
+  name: default
+  options:
+    managed: false
+
+platforms:
+  - name: localhost
+
+provisioner:
+  name: ansible
+  # The scenario lives inside the role (roles/node_exporter/molecule/default),
+  # so MOLECULE_PROJECT_DIRECTORY points at the role itself and its parent is the
+  # repository "roles/" directory. Adding it to the roles path lets Molecule
+  # resolve "node_exporter" during the syntax, converge and idempotence steps
+  # without relying on the repository-root ansible.cfg (which Molecule ignores).
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/.."
+  inventory:
+    hosts:
+      all:
+        hosts:
+          localhost:
+            ansible_connection: local
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+
+verifier:
+  name: ansible
