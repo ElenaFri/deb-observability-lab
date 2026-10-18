@@ -90,7 +90,62 @@ The repository does not currently require Vagrant. If Vagrant or another VM
 provisioner is added later, it must remain an optional local development helper,
 not a runtime dependency of the Ansible roles.
 
+## Milestone 6: a second local VM
+
+A second monitored host lets you demonstrate the multi-host topology. The fastest
+reliable way to get one is to clone the known-good monitoring VM rather than fighting a
+fresh install. With libvirt (`qemu:///system`):
+
+```bash
+# The source domain must be shut off before cloning.
+sudo virsh -c qemu:///system shutdown debian13
+
+sudo virt-clone --connect qemu:///system \
+  --original debian13 \
+  --name node2 \
+  --file /var/lib/libvirt/images/node2.qcow2
+
+# Reset the clone's identity (hostname, machine-id, SSH host keys, logs).
+sudo virt-sysprep -d node2 --hostname node2
+
+sudo virsh -c qemu:///system start debian13
+sudo virsh -c qemu:///system start node2
+```
+
+`virt-clone` assigns a new MAC, so the clone gets its own DHCP lease. Find its address:
+
+```bash
+sudo virsh -c qemu:///system domifaddr node2 --source agent
+```
+
+Two `virt-sysprep` side effects need attention before Ansible can reach the clone, because
+it removes SSH host keys and every user's `~/.ssh`:
+
+- `sshd` will not start until host keys exist: regenerate them with `ssh-keygen -A`,
+  then `systemctl enable --now ssh`.
+- the deploy key is gone from `authorized_keys`: re-add your public key to
+  `/home/<user>/.ssh/authorized_keys` (mode 600, owned by the user; `.ssh` mode 700).
+
+If SSH is not yet reachable, both fixes can be applied through the qemu guest agent, which
+runs as root inside the VM, so no in-guest password is needed:
+
+```bash
+sudo virsh -c qemu:///system qemu-agent-command node2 \
+  '{"execute":"guest-exec","arguments":{"path":"/bin/sh","arg":["-c","ssh-keygen -A && systemctl enable --now ssh"],"capture-output":true}}'
+```
+
+Because the clone inherits the full stack, disable the monitoring services on the new
+monitored-only host, keeping Node Exporter:
+
+```bash
+ssh -t <user>@<node2-ip> 'sudo systemctl disable --now prometheus grafana-server prometheus-alertmanager'
+```
+
+Then add `node2` to the `[monitored]` group in your local inventory and re-deploy Node
+Exporter and Prometheus (see Milestone 6 in the README).
+
 ## Host checks
+The repository does not currently require Vagrant. If Vagrant or another VM
 
 These commands only inspect the local machine and do not change the repository:
 

@@ -18,6 +18,11 @@ step; the default receiver only exposes alerts in the Alertmanager UI.
 | Grafana | monitoring | `grafana-server` | `3000` |
 | Alertmanager | monitoring | `prometheus-alertmanager` | `9093` |
 
+In the single-VM lab one host fills both roles. In a multi-host lab (Milestone 6) the
+monitoring services run on the monitoring host only, while each monitored host runs Node
+Exporter alone. The commands below use the monitoring host address; replace the instance
+address when acting on a specific monitored host.
+
 ## Routine health checks
 
 From the control node (your workstation):
@@ -114,7 +119,9 @@ Exporter makes its target unscrapeable, so `up` drops to `0` and `InstanceDown` 
    ```
 
    Expect `up == 0` and `InstanceDown` with `"state": "firing"`. In Grafana, the
-   "Host availability" panel shows `DOWN`.
+   "Host availability" panel shows `DOWN`. With several monitored hosts, the firing
+   `InstanceDown` alert carries the `instance` label of the affected host, so only that
+   target is reported down while the others stay up.
 
 ## Recovery
 

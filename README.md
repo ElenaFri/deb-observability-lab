@@ -27,8 +27,7 @@ Local-first. No public cloud, no paid services, no containers (Docker / Kubernet
 no Terraform. The focus is Linux system administration and Ansible fundamentals applied
 to a realistic observability use case.
 
-Optional later phases: Alertmanager notifications, multi-VM separation, Molecule tests,
-TLS / authenticated reverse proxy.
+Optional later phases: Molecule tests, TLS / authenticated reverse proxy.
 
 ## Architecture
 
@@ -285,6 +284,52 @@ Run the incident simulation from [`docs/runbook.md`](docs/runbook.md) again: the
 `InstanceDown` alert now also appears in the Alertmanager UI at
 `http://192.168.122.60:9093`, grouped by `alertname` and `instance`.
 
+## Milestone 6: Multi-host separation
+
+The stack was designed from the start to scale from one VM to many without a redesign:
+the Prometheus scrape configuration is generated from the `monitored` inventory group.
+Adding a second monitored host is therefore a pure inventory change plus a redeploy, with
+no role or template edits.
+
+Add the new host to the `[monitored]` group in your local inventory:
+
+```ini
+[monitoring]
+debian13 ansible_host=192.168.122.60
+
+[monitored]
+debian13
+node2 ansible_host=192.168.122.78
+```
+
+Deploy Node Exporter to the whole `monitored` group, then re-run Prometheus so it picks up
+the new target automatically:
+
+```bash
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-node-exporter.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+
+ansible-playbook \\
+  -i inventory/hosts.local.ini \\
+  playbooks/deploy-prometheus.yml \\
+  --private-key ~/.ssh/deb-observability-lab \\
+  --ask-become-pass
+```
+
+Confirm both hosts are scraped and healthy:
+
+```bash
+curl -g --silent 'http://192.168.122.60:9090/api/v1/query?query=up{job="node"}'
+```
+
+Every monitored host should report `up == 1`, and both appear in the "Node overview"
+dashboard in Grafana (use the instance selector). See
+[`docs/local-development.md`](docs/local-development.md) for provisioning a second local
+Debian VM.
+
 ## Testing & acceptance criteria
 
 Milestone 0 acceptance criteria:
@@ -338,6 +383,14 @@ Milestone 5 acceptance criteria:
 - A firing `InstanceDown` alert is visible in the Alertmanager UI.
 - A second Ansible run reports `changed=0`.
 
+Milestone 6 acceptance criteria:
+- A second Debian host added to `[monitored]` requires no role or template changes.
+- Node Exporter deploys to every `monitored` host from a single playbook run.
+- Re-running Prometheus regenerates the scrape config to include the new host.
+- Every `monitored` host appears as a scrape target with `up == 1`.
+- Both hosts are selectable in the "Node overview" Grafana dashboard.
+- A second Ansible run reports `changed=0` across all hosts.
+
 ## Security
 
 Sensible defaults for a local lab:
@@ -365,5 +418,5 @@ local lab and documented as future hardening.
 | 3 | `grafana` role (datasource + dashboards provisioned as code) |
 | 4 | Incident detection (alert rules) + runbook + smoke tests |
 | 5 | Alertmanager + alert routing (external notifications via Vault, optional) |
-| 6 *(optional)* | Multi-VM separation |
+| 6 | Multi-VM separation (monitoring host + dedicated monitored host) |
 | 7 *(optional)* | Molecule tests + TLS/auth hardening |
